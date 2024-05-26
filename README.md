@@ -69,4 +69,3 @@ amixer sset 'Mic' 90%
 ```sh
 sudo journalctl -fu audio-guestbook.service
 ```
-
