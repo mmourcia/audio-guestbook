@@ -10,184 +10,151 @@ import glob
 from threading import Timer
 from datetime import datetime
 
-# Load configuration from YAML file
-with open('config.yaml', 'r') as config_file:
-    config = yaml.safe_load(config_file)
+class RotaryDial:
+    def __init__(self, config_file='config.yaml'):
+        self.load_config(config_file)
+        self.setup_gpio()
+        self.init_audio()
+        self.pulse_count = 0
+        self.last_state = 1
+        self.dial_enabled = False
+        self.sound_playing = False
+        self.current_action = None
+        self.current_recording_process = None
+        self.recording_timer = None
+        GPIO.add_event_detect(self.HOOK_PIN, GPIO.BOTH, callback=self.handle_hook_state, bouncetime=self.BOUNCE_TIME)
 
-# Pin configuration from YAML
-ROTARY_ENABLE_PIN = config['rotary']['enable_pin']
-ROTARY_COUNT_PIN = config['rotary']['count_pin']
-BOUNCE_TIME = config['rotary']['bounce_time']
-DEBOUNCE_DELAY = config['rotary']['debounce_delay']
-HOOK_PIN = config['hook']['pin']
-HOOK_SOUND_FILE = config['hook']['sound_file']
-AUDIO_DEVICE_ADDRESS = config['audio_output']['device_address']
-RECORDINGS_DIRECTORY = "recordings"
-RECORDING_DURATION = 10  # Duration in seconds for recording
+    def load_config(self, config_file):
+        with open(config_file, 'r') as file:
+            config = yaml.safe_load(file)
+        self.ROTARY_ENABLE_PIN = config['rotary']['enable_pin']
+        self.ROTARY_COUNT_PIN = config['rotary']['count_pin']
+        self.BOUNCE_TIME = config['rotary']['bounce_time']
+        self.DEBOUNCE_DELAY = config['rotary']['debounce_delay']
+        self.HOOK_PIN = config['hook']['pin']
+        self.HOOK_SOUND_FILE = config['hook']['sound_file']
+        self.AUDIO_DEVICE_ADDRESS = config['audio_output']['device_address']
+        self.RECORDINGS_DIRECTORY = "recordings"
+        self.RECORDING_DURATION = 10  # Duration in seconds for recording
 
-# Initialize pygame mixer
-pygame.mixer.init()
+    def setup_gpio(self):
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.ROTARY_ENABLE_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.ROTARY_COUNT_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.HOOK_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Hook pin setup
 
-# Set the audio output device
-pygame.mixer.pre_init(devicename=AUDIO_DEVICE_ADDRESS)
+    def init_audio(self):
+        os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+        pygame.mixer.init()
+        pygame.mixer.pre_init(devicename=self.AUDIO_DEVICE_ADDRESS)
+        self.hook_sound = pygame.mixer.Sound(self.HOOK_SOUND_FILE)
 
-# Load the hook sound file
-hook_sound = pygame.mixer.Sound(HOOK_SOUND_FILE)
+    def count_pulse(self, channel):
+        self.pulse_count += 1
 
-# Global variable to store pulse count
-pulse_count = 0
-last_state = 1
-dial_enabled = False
-sound_playing = False  # Flag to track sound playback status
-current_action = None  # Variable to track the current action
-current_recording_process = None  # Variable to track the current recording process
-recording_timer = None  # Variable to track the recording timer
+    def handle_hook_state(self, channel):
+        hook_state = GPIO.input(self.HOOK_PIN)
+        if hook_state == GPIO.LOW:  # Hook is open (NO)
+            print("Hook is open, ready for dialing")
+            if not self.sound_playing:
+                self.hook_sound.play()
+                self.sound_playing = True
+            self.dial_enabled = True
+            GPIO.add_event_detect(self.ROTARY_ENABLE_PIN, GPIO.BOTH)
+            self.reset_current_action()
+            self.cancel_recording_timer()
+            self.stop_recording_process()
+        else:  # Hook is closed (NC)
+            print("Hook is closed, dialing not allowed")
+            if self.sound_playing:
+                self.hook_sound.stop()
+                self.sound_playing = False
+            self.dial_enabled = False
+            GPIO.remove_event_detect(self.ROTARY_ENABLE_PIN)
+            GPIO.remove_event_detect(self.ROTARY_COUNT_PIN)
+            self.reset_current_action()
 
-# Callback function to count pulses
-def count_pulse(channel):
-    global pulse_count
-    pulse_count += 1
+    def reset_current_action(self):
+        if self.current_action:
+            self.current_action.stop()
+            self.current_action = None
 
-# Callback function to handle hook state changes
-def handle_hook_state(channel):
-    global dial_enabled, sound_playing, current_action, current_recording_process
-    hook_state = GPIO.input(HOOK_PIN)
-    if hook_state == GPIO.LOW:  # Hook is open (NO)
-        print("Hook is open, ready for dialing")
-        if not sound_playing:
-            hook_sound.play()  # Play the hook sound if not already playing
-            sound_playing = True
-        dial_enabled = True
-        GPIO.add_event_detect(ROTARY_ENABLE_PIN, GPIO.BOTH)
-        # Reset current action
-        if current_action:
-            current_action.stop()
-            current_action = None
-        # Cancel any pending recording timer
-        cancel_recording_timer()
-        # Stop any ongoing recording process
-        if current_recording_process:
-            current_recording_process.terminate()
-            current_recording_process = None
-    else:  # Hook is closed (NC)
-        print("Hook is closed, dialing not allowed")
-        if sound_playing:
-            hook_sound.stop()  # Stop the sound playback if already playing
-            sound_playing = False
-        dial_enabled = False
-        GPIO.remove_event_detect(ROTARY_ENABLE_PIN)
-        GPIO.remove_event_detect(ROTARY_COUNT_PIN)
-        # Reset current action
-        if current_action:
-            current_action.stop()
-            current_action = None
+    def cancel_recording_timer(self):
+        if self.recording_timer:
+            self.recording_timer.cancel()
+            self.recording_timer = None
 
-# Function to play leave a message sound
-def play_leave_message_sound():
-    leave_message_sound = pygame.mixer.Sound("sounds/leave_a_message.wav")
-    leave_message_sound.play()
+    def stop_recording_process(self):
+        if self.current_recording_process:
+            self.current_recording_process.terminate()
+            self.current_recording_process = None
 
-# Function to generate a beep sound
-def generate_beep_sound():
-    # You can implement the beep sound generation logic here
-    pass
+    def play_leave_message_sound(self):
+        leave_message_sound = pygame.mixer.Sound("sounds/leave_a_message.wav")
+        leave_message_sound.play()
 
-# Function to start recording audio
-def start_audio_recording():
-    global current_recording_process, recording_timer
-    # Create recordings directory if it doesn't exist
-    if not os.path.exists(RECORDINGS_DIRECTORY):
-        os.makedirs(RECORDINGS_DIRECTORY)
-    # Generate file name with current timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_name = f"recorded_audio_{timestamp}.wav"
-    file_path = os.path.join(RECORDINGS_DIRECTORY, file_name)
-    # Start audio recording with arecord
-    current_recording_process = subprocess.Popen(["arecord", "-D", AUDIO_DEVICE_ADDRESS, "-f", "cd", "-c", "1", "-t", "wav", "-d", str(RECORDING_DURATION), file_path])
-    # Start a timer to stop recording after specified duration
-    recording_timer = Timer(RECORDING_DURATION, stop_recording)
-    recording_timer.start()
+    def start_audio_recording(self):
+        if not os.path.exists(self.RECORDINGS_DIRECTORY):
+            os.makedirs(self.RECORDINGS_DIRECTORY)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"recorded_audio_{timestamp}.wav"
+        file_path = os.path.join(self.RECORDINGS_DIRECTORY, file_name)
+        self.current_recording_process = subprocess.Popen(["arecord", "-D", self.AUDIO_DEVICE_ADDRESS, "-f", "cd", "-c", "1", "-t", "wav", "-d", str(self.RECORDING_DURATION), file_path])
+        self.recording_timer = Timer(self.RECORDING_DURATION, self.stop_recording)
+        self.recording_timer.start()
 
-# Function to cancel the recording timer
-def cancel_recording_timer():
-    global recording_timer
-    if recording_timer:
-        recording_timer.cancel()
-        recording_timer = None
+    def stop_recording(self):
+        self.stop_recording_process()
 
-# Function to stop recording after specified duration
-def stop_recording():
-    global current_recording_process
-    if current_recording_process:
-        current_recording_process.terminate()
-        current_recording_process = None
+    def play_last_recording(self):
+        wav_files = glob.glob(os.path.join(self.RECORDINGS_DIRECTORY, "*.wav"))
+        if wav_files:
+            last_recording = sorted(wav_files, key=os.path.getctime)[-1]
+            last_recording_sound = pygame.mixer.Sound(last_recording)
+            last_recording_sound.play()
+        else:
+            print("No recordings found")
 
-# Function to play the last recorded audio
-def play_last_recording():
-    # Get the list of wav files in the recordings directory
-    wav_files = glob.glob(os.path.join(RECORDINGS_DIRECTORY, "*.wav"))
-    if wav_files:
-        # Get the last recorded audio file
-        last_recording = sorted(wav_files, key=os.path.getctime)[-1]
-        # Load and play the last recorded audio file
-        last_recording_sound = pygame.mixer.Sound(last_recording)
-        last_recording_sound.play()
-    else:
-        print("No recordings found")
+    def run(self):
+        try:
+            while True:
+                if self.dial_enabled and GPIO.event_detected(self.ROTARY_ENABLE_PIN):
+                    current_state = GPIO.input(self.ROTARY_ENABLE_PIN)
+                    if self.last_state != current_state:
+                        if current_state == 0:  # Dial turned
+                            GPIO.add_event_detect(self.ROTARY_COUNT_PIN, GPIO.BOTH, callback=self.count_pulse, bouncetime=self.BOUNCE_TIME)
+                        else:  # Dial released
+                            if GPIO.event_detected(self.ROTARY_COUNT_PIN):
+                                dialed_number = int(self.pulse_count / 2)
+                                if dialed_number == 10:
+                                    dialed_number = 0
+                                print(f"Dialed number: {dialed_number}")
+                                if self.sound_playing:
+                                    self.hook_sound.stop()
+                                    self.sound_playing = False
+                                self.handle_dialed_number(dialed_number)
+                                GPIO.remove_event_detect(self.ROTARY_COUNT_PIN)
+                                self.pulse_count = 0
+                        self.last_state = current_state
+                time.sleep(self.DEBOUNCE_DELAY)
+        except KeyboardInterrupt:
+            print("Program terminated")
+        finally:
+            GPIO.cleanup()
 
-# Setup GPIO
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(ROTARY_ENABLE_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(ROTARY_COUNT_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(HOOK_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Hook pin setup
+    def handle_dialed_number(self, number):
+        if number == 1:
+            self.current_action = pygame.mixer.Sound("sounds/greeting.wav")
+            self.current_action.play()
+        elif number == 2:
+            self.play_leave_message_sound()
+            time.sleep(5)
+            self.start_audio_recording()
+        elif number == 3:
+            self.play_last_recording()
 
-# Add event detection for the hook pin
-GPIO.add_event_detect(HOOK_PIN, GPIO.BOTH, callback=handle_hook_state, bouncetime=BOUNCE_TIME)
-
-try:
-    while True:
-        if dial_enabled and GPIO.event_detected(ROTARY_ENABLE_PIN):
-            current_state = GPIO.input(ROTARY_ENABLE_PIN)
-            
-            if last_state != current_state:
-                if current_state == 0:  # Dial turned
-                    GPIO.add_event_detect(ROTARY_COUNT_PIN, GPIO.BOTH, callback=count_pulse, bouncetime=BOUNCE_TIME)
-                else:  # Dial released
-                    if GPIO.event_detected(ROTARY_COUNT_PIN):  # Only print if counting was allowed
-                        # Since we count both rising and falling edges, we divide by 2
-                        dialed_number = int(pulse_count / 2)
-                        
-                        # Handle the '0' case (10 pulses)
-                        if dialed_number == 10:
-                            dialed_number = 0
-                        
-                        print(f"Dialed number: {dialed_number}")
-                        if sound_playing:
-                            hook_sound.stop()  # Stop the hook sound if playing
-                            sound_playing = False
-                        
-                        # Check dialed numbers and perform corresponding actions
-                        if dialed_number == 1:
-                            current_action = pygame.mixer.Sound("sounds/greeting.wav")
-                            current_action.play()
-                        elif dialed_number == 2:
-                            play_leave_message_sound()
-                            time.sleep(5)
-                            start_audio_recording()
-                        elif dialed_number == 3:
-                            play_last_recording()
-                        
-                        GPIO.remove_event_detect(ROTARY_COUNT_PIN)
-                        pulse_count = 0
-                
-                last_state = current_state
-
-        time.sleep(DEBOUNCE_DELAY)  # Small delay to prevent high CPU usage
-
-except KeyboardInterrupt:
-    print("Program terminated")
-
-finally:
-    GPIO.cleanup()
+if __name__ == "__main__":
+    rotary_dial = RotaryDial()
+    rotary_dial.run()
 

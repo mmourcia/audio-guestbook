@@ -9,8 +9,12 @@ hook:
   pin: 22
   sound_file: 'sounds/on_hook.mp3'
 
+sounds:
+  greeting: 'sounds/greeting.wav'
+  leave_message: 'sounds/leave_a_message.wav'
+
 audio_output:
-  device_address: 'hw:2,0'  # Change this to your desired audio output device address
+  device_address: 'hw:0,0'  # Change this to your desired audio output device address
 
 
 led:
