@@ -1,0 +1,20 @@
+# config.yaml
+rotary:
+  enable_pin: 18
+  count_pin: 23
+  bounce_time: 10
+  debounce_delay: 0.01
+
+hook:
+  pin: 22
+  sound_file: 'sounds/on_hook.mp3'
+
+audio_output:
+  device_address: 'hw:2,0'  # Change this to your desired audio output device address
+
+
+led:
+  pin: 12  # GPIO pin connected to the LED
+  num_leds: 1  # Number of LEDs
+  brightness: 255  # Brightness of the LED
+
