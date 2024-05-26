@@ -84,7 +84,7 @@ def handle_hook_state(channel):
 
 # Function to play leave a message sound
 def play_leave_message_sound():
-    leave_message_sound = pygame.mixer.Sound("sounds/leave_a_message.mp3")
+    leave_message_sound = pygame.mixer.Sound("sounds/leave_a_message.wav")
     leave_message_sound.play()
 
 # Function to generate a beep sound
@@ -173,7 +173,7 @@ try:
                             current_action.play()
                         elif dialed_number == 2:
                             play_leave_message_sound()
-                            generate_beep_sound()
+                            time.sleep(5)
                             start_audio_recording()
                         elif dialed_number == 3:
                             play_last_recording()
