@@ -4,17 +4,22 @@
 
 ## Context
 
-Some good friends are leaving the area ans we wanted to give them a gift, an audio guest book.
+Some good friends are leaving the area and we wanted to give them a gift, an audio guest book.  
 As we're french, we decided to use the famous old rotary phone made by [Socotel, the `S63`](https://fr.wikipedia.org/wiki/T%C3%A9l%C3%A9phone_S63).
 
 Must have features are :
 
 * Be able to use the rotary dialer to execute some actions
 * Be able to leave an audio message
-* Be able to use mic and speaker from the main phone and the secondary speaker
+* Be able to use mic and speaker from the main phone as well as the secondary speaker
 * Be able to make it ring as it used to (Spoiler : I didn't managed to make it work snirf ...) 
 * Use a rgb led to provide a status to users
 
+Here are some credits I'd like to give because the authors inspired me :
+
+* https://www.hackster.io/carolinebuttet/turn-a-rotary-phone-into-a-radio-and-travel-through-time-14fd79
+* https://github.com/ThomasChappe/S63_Arduino
+* https://github.com/revolunet/s63/
 
 ## Unboxing and understanding what's inside the S63
 
@@ -26,8 +31,8 @@ Here it is !
 
 The rotary dialer is composed of 2 dry contacts related to :
 
-* Is the rotary in use ?
-* Pulses counter linked to the dialed number
+* Is the rotary in use ? (blue and blue/while wires)
+* Pulses counter linked to the dialed number (red and red/white wires)
 
 ### Mic and speakers
 
@@ -40,9 +45,17 @@ This part is absolutely not necessary. I'll maybe just use wires to power the ra
 
 ## Setup
 
+### Hardware
+
+| Item               | Photo                                          | Description |
+| ------------------ | ---------------------------------------------- | ----------- |
+| Socotel S63 Phone  | ![Socotel S63](./img/socotel_s63.png)          | The phone !!(bought on [le bon coin](https://leconcoin.fr)) | 
+| Raspberry pi 2 W   | ![raspberry pi 0 2w](./img/raspberrypi02w.jpg) | |
+| USB sound card     | ![usb sound card](./img/usbsoundcard.jpg)      | To connect mic and speaker from the main phone              |
+| Jack 3,5mm adapter | ![jack_screw](./img/jack_screw.png)            | To connect the secondary speaker                            |
+
 ### OS
 
-Raspberry pi 2 W
 Raspberry pi OS LITE 64 bits
 
 With rpi-imager and options to 
@@ -52,7 +65,7 @@ With rpi-imager and options to
 
 ### Packages
 
-**Via SSH**
+**System**
 
 ```sh
 sudo apt update
@@ -61,7 +74,16 @@ sudo apt remove python3-rpi.gpio
 sudo apt install python3-rpi-lgpio
 ```
 
-**Systemd**
+**Audio guestbook itself**
+
+Note that most of that code has been written by chatpgt.
+
+```sh
+git clone https://github.com/mmourcia/audio-guestbook.git
+cd audio-guestbook
+```
+
+**Systemd unit to launch the program at start**
 
 ```sh
 sudo cp contrib/audio-guestbook.service /etc/systemd/system/
@@ -69,15 +91,6 @@ sudo chmod 644 /etc/systemd/system/audio-guestbook.service
 sudo systemctl daemon-reload
 sudo systemctl enable audio-guestbook.service
 sudo systemctl start audio-guestbook.service
-```
-
-### Audio Guestbook
-
-Note that most of that code has been written by chatpgt.
-
-```sh
-git clone https://github.com/mmourcia/audio-guestbook.git
-cd audio-guestbook
 ```
 
 ## Wiring
@@ -98,7 +111,6 @@ cd audio-guestbook
 | GPIO18 | Blue      | Rotary enable |
 
 ### Mic and speakers
-
 
 ## Troubleshooting
 
