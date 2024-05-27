@@ -1,6 +1,7 @@
 import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
-
+import signal
+import sys
 import RPi.GPIO as GPIO
 import time
 import yaml
@@ -116,7 +117,13 @@ class RotaryDial:
         else:
             print("No recordings found")
 
+    def signal_handler(self, sig, frame):
+        print("Got Signal, Stopping...")
+        GPIO.cleanup()
+        sys.exit(0)
+
     def run(self):
+        signal.signal(signal.SIGINT, self.signal_handler)
         try:
             while True:
                 if self.dial_enabled and GPIO.event_detected(self.ROTARY_ENABLE_PIN):

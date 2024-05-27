@@ -1,0 +1,20 @@
+[Unit]
+Description=Audio Guestbook Service
+After=network.target
+
+[Service]
+ExecStart=python3 /home/guestbook/audio-guestbook/audio-guestbook.py
+WorkingDirectory=/home/guestbook/audio-guestbook
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=guestbook
+Environment=PYTHONUNBUFFERED=1
+KillMode=process
+TimeoutStopSec=10
+ExecStop=/bin/kill -s SIGINT $MAINPID
+
+
+[Install]
+WantedBy=multi-user.target
+
