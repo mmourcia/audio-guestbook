@@ -14,6 +14,7 @@ Must have features are :
 * Be able to use mic and speaker from the main phone as well as the secondary speaker
 * Be able to make it ring as it used to (Spoiler : I didn't managed to make it work snirf ...) 
 * Use a rgb led to provide a status to users. Not implemented, still finding a way to use a ws2812b led without being root.
+* Send voice messages to a telegram channel
 
 Here are some credits I'd like to give because the authors inspired me :
 
@@ -69,7 +70,7 @@ Options set (Ctrl+Shift+X) :
 
 ```sh
 sudo apt update
-sudo apt install git python3-yaml python3-pip
+sudo apt install git python3-yaml python3-pip python3-python-telegram-bot
 sudo apt remove python3-rpi.gpio
 sudo apt install python3-rpi-lgpio
 ```
@@ -187,6 +188,10 @@ sounds:
 
 audio_output:
   device_address: 'hw:0,0'  # Change this to your desired audio output device address. Check aplay -l|-L.
+
+telegram:
+  token: "YOUR_TELEGRAM_BOT_TOKEN" # if set, the program will send recorded voice to telegram
+  chat_id: "YOUR_TELEGRAM_CHAT_ID"
 ```
 
 From the command line 
@@ -238,4 +243,28 @@ amixer sset 'Mic' 90%
 
 ```sh
 sudo journalctl -fu audio-guestbook.service
+```
+
+**Unable to install hw params**
+
+Sometimes, I get this message when trying to record a voice message.  
+Still don't know why, if someone can help, I take it !
+
+```
+arecord: set_params:1416: Unable to install hw params:
+ACCESS:  RW_INTERLEAVED
+FORMAT:  S16_LE
+SUBFORMAT:  STD
+SAMPLE_BITS: 16
+FRAME_BITS: 16
+CHANNELS: 1
+RATE: 44100
+PERIOD_TIME: (125011 125012)
+PERIOD_SIZE: 5513
+PERIOD_BYTES: 11026
+PERIODS: (3 4)
+BUFFER_TIME: 500000
+BUFFER_SIZE: 22050
+BUFFER_BYTES: 44100
+TICK_TIME: 0
 ```

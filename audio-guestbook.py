@@ -10,12 +10,15 @@ import subprocess
 import glob
 from threading import Timer
 from datetime import datetime
+from telegram import Bot
+from telegram.error import TelegramError
 
 class RotaryDial:
     def __init__(self, config_file='config.yaml'):
         self.load_config(config_file)
         self.setup_gpio()
         self.init_audio()
+        self.init_telegram()
         self.pulse_count = 0
         self.last_state = 1
         self.dial_enabled = False
@@ -37,6 +40,8 @@ class RotaryDial:
         self.AUDIO_DEVICE_ADDRESS = config['audio_output']['device_address']
         self.RECORDINGS_DIRECTORY = "recordings"
         self.RECORDING_DURATION = 10  # Duration in seconds for recording
+        self.TELEGRAM_TOKEN = config['telegram'].get('token')
+        self.TELEGRAM_CHAT_ID = config['telegram'].get('chat_id')
 
     def setup_gpio(self):
         GPIO.setwarnings(False)
@@ -50,6 +55,12 @@ class RotaryDial:
         pygame.mixer.init()
         pygame.mixer.pre_init(devicename=self.AUDIO_DEVICE_ADDRESS)
         self.hook_sound = pygame.mixer.Sound(self.HOOK_SOUND_FILE)
+
+    def init_telegram(self):
+        if self.TELEGRAM_TOKEN and self.TELEGRAM_CHAT_ID:
+            self.bot = Bot(token=self.TELEGRAM_TOKEN)
+        else:
+            self.bot = None
 
     def count_pulse(self, channel):
         self.pulse_count += 1
@@ -100,13 +111,23 @@ class RotaryDial:
             os.makedirs(self.RECORDINGS_DIRECTORY)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         file_name = f"recorded_audio_{timestamp}.wav"
-        file_path = os.path.join(self.RECORDINGS_DIRECTORY, file_name)
-        self.current_recording_process = subprocess.Popen(["arecord", "-D", self.AUDIO_DEVICE_ADDRESS, "-f", "cd", "-c", "1", "-t", "wav", "-d", str(self.RECORDING_DURATION), file_path])
+        self.current_file_path = os.path.join(self.RECORDINGS_DIRECTORY, file_name)
+        self.current_recording_process = subprocess.Popen(["arecord", "-D", self.AUDIO_DEVICE_ADDRESS, "-f", "cd", "-c", "1", "-t", "wav", "-d", str(self.RECORDING_DURATION), self.current_file_path])
         self.recording_timer = Timer(self.RECORDING_DURATION, self.stop_recording)
         self.recording_timer.start()
 
     def stop_recording(self):
         self.stop_recording_process()
+        if self.bot:
+            self.send_telegram_message(self.current_file_path)
+
+    def send_telegram_message(self, file_path):
+        try:
+            with open(file_path, 'rb') as audio_file:
+                self.bot.send_audio(chat_id=self.TELEGRAM_CHAT_ID, audio=audio_file)
+            print("Recording sent via Telegram")
+        except TelegramError as e:
+            print(f"Failed to send recording via Telegram: {e}")
 
     def play_last_recording(self):
         wav_files = glob.glob(os.path.join(self.RECORDINGS_DIRECTORY, "*.wav"))

@@ -16,6 +16,9 @@ sounds:
 audio_output:
   device_address: 'hw:0,0'  # Change this to your desired audio output device address
 
+telegram:
+  token: "YOUR_TELEGRAM_BOT_TOKEN"
+  chat_id: "YOUR_TELEGRAM_CHAT_ID"
 
 led:
   pin: 12  # GPIO pin connected to the LED
