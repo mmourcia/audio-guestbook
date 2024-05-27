@@ -189,6 +189,9 @@ sounds:
 audio_output:
   device_address: 'hw:0,0'  # Change this to your desired audio output device address. Check aplay -l|-L.
 
+recording:
+  max_duration: 10  # Maximum duration in seconds
+
 telegram:
   token: "YOUR_TELEGRAM_BOT_TOKEN" # if set, the program will send recorded voice to telegram
   chat_id: "YOUR_TELEGRAM_CHAT_ID"

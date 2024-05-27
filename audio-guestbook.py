@@ -26,6 +26,7 @@ class RotaryDial:
         self.current_action = None
         self.current_recording_process = None
         self.recording_timer = None
+        self.is_recording = False  # Track if recording is in progress
         GPIO.add_event_detect(self.HOOK_PIN, GPIO.BOTH, callback=self.handle_hook_state, bouncetime=self.BOUNCE_TIME)
 
     def load_config(self, config_file):
@@ -86,6 +87,9 @@ class RotaryDial:
             GPIO.remove_event_detect(self.ROTARY_ENABLE_PIN)
             GPIO.remove_event_detect(self.ROTARY_COUNT_PIN)
             self.reset_current_action()
+            if self.is_recording:  # Stop recording if the phone is hung up
+                self.stop_recording()
+                self.is_recording = False
 
     def reset_current_action(self):
         if self.current_action:
@@ -115,11 +119,13 @@ class RotaryDial:
         self.current_recording_process = subprocess.Popen(["arecord", "-D", self.AUDIO_DEVICE_ADDRESS, "-f", "cd", "-c", "1", "-t", "wav", "-d", str(self.RECORDING_DURATION), self.current_file_path])
         self.recording_timer = Timer(self.RECORDING_DURATION, self.stop_recording)
         self.recording_timer.start()
+        self.is_recording = True  # Indicate that recording is in progress
 
     def stop_recording(self):
         self.stop_recording_process()
         if self.bot:
             self.send_telegram_message(self.current_file_path)
+        self.is_recording = False  # Reset recording flag
 
     def send_telegram_message(self, file_path):
         try:
