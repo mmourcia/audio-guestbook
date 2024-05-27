@@ -39,7 +39,7 @@ class RotaryDial:
         self.HOOK_SOUND_FILE = config['hook']['sound_file']
         self.AUDIO_DEVICE_ADDRESS = config['audio_output']['device_address']
         self.RECORDINGS_DIRECTORY = "recordings"
-        self.RECORDING_DURATION = 10  # Duration in seconds for recording
+        self.RECORDING_DURATION = config['recording']['max_duration']
         self.TELEGRAM_TOKEN = config['telegram'].get('token')
         self.TELEGRAM_CHAT_ID = config['telegram'].get('chat_id')
 
@@ -138,9 +138,14 @@ class RotaryDial:
         else:
             print("No recordings found")
 
+    def cleanup(self):
+        print("Cleaning up resources...")
+        GPIO.cleanup()
+        pygame.mixer.quit()
+
     def signal_handler(self, sig, frame):
         print("Got Signal, Stopping...")
-        GPIO.cleanup()
+        self.cleanup()
         sys.exit(0)
 
     def run(self):
@@ -169,7 +174,7 @@ class RotaryDial:
         except KeyboardInterrupt:
             print("Program terminated")
         finally:
-            GPIO.cleanup()
+            self.cleanup()
 
     def handle_dialed_number(self, number):
         if number == 1:
