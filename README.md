@@ -73,6 +73,7 @@ sudo apt update
 sudo apt install git python3-yaml python3-pip python3-python-telegram-bot
 sudo apt remove python3-rpi.gpio
 sudo apt install python3-rpi-lgpio
+sudo pip3 install --break-system-packages gTTS gTTS-token
 ```
 
 **Audio guestbook itself**
@@ -200,7 +201,7 @@ telegram:
 From the command line 
 
 ```sh
-python3 audio-guestbook.py
+python3 main.py
 ```
 
 Debug messages will appear on the tty.
@@ -223,6 +224,8 @@ Now you can try
 * to dial 1, you'll listen to a recorded message
 * to dial 2, you'll be able to record a message (10s max)
 * to dial 3, you'll listen to the last recorded message
+
+To update or add new actions, have a look at `dialed_number` directory.
 
 Enjoy !
 
