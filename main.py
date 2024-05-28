@@ -90,13 +90,31 @@ class RotaryDial:
         else:
             print("Telegram bot is not initialized")
 
+    def stop_recording(self):
+        self.stop_recording_process()
+        if self.bot:
+            self.send_telegram_message(self.current_file_path)
+        self.is_recording = False  # Reset recording flag
+
     def count_pulse(self, channel):
         self.pulse_count += 1
+
+    def control_ws2812b_led(color, blinking=False):
+        led_controller_path = "/home/audio-guestbook/led_controller.py"
+
+        color_str = ','.join(str(c) for c in color)
+
+        blinking_str = "1" if blinking else "0"
+
+        command = ["sudo", "python3", led_controller_path, color_str, blinking_str]
+        subprocess.run(command)
+
 
     def handle_hook_state(self, channel):
         hook_state = GPIO.input(self.HOOK_PIN)
         if hook_state == GPIO.LOW:  # Hook is open (NO)
             print("Hook is open, ready for dialing")
+            control_ws2812b_led((0, 255, 255), blinking=True)
             if not self.sound_playing:
                 self.hook_sound.play()
                 self.sound_playing = True
@@ -107,6 +125,7 @@ class RotaryDial:
             self.stop_recording_process()
         else:  # Hook is closed (NC)
             print("Hook is closed, dialing not allowed")
+            #self.led_control.set_color(0, 255, 255)  # Green solid
             if self.sound_playing:
                 self.hook_sound.stop()
                 self.sound_playing = False
@@ -146,6 +165,7 @@ class RotaryDial:
     def run(self):
         signal.signal(signal.SIGINT, self.signal_handler)
         try:
+            #self.led_control.set_color(0, 255, 0)  # Green
             while True:
                 if self.dial_enabled and GPIO.event_detected(self.ROTARY_ENABLE_PIN):
                     current_state = GPIO.input(self.ROTARY_ENABLE_PIN)
@@ -173,8 +193,13 @@ class RotaryDial:
 
     def handle_dialed_number(self, number):
         try:
+            # Set the LED to blinking blue when an action starts
+            #self.led_control.start_blinking(0, 0, 255)  # Blue blinking
             action_module = __import__(f"dialed_number.{number}", fromlist=["execute"])
             action_module.execute(self)
+            # Set the LED to solid blue when the action is done
+            #self.led_control.stop_blinking()
+            #self.led_control.set_color(0, 0, 255)  # Blue solid
         except ImportError:
             print(f"No action defined for number {number}")
 
