@@ -76,6 +76,60 @@ sudo apt install python3-rpi-lgpio
 sudo pip3 install --break-system-packages gTTS gTTS-token
 ```
 
+**Option Led status**
+
+There is an option to use a led (type ws2128b) to provide the guest book status.  
+It's executed over a dedicated daemon because it requires root elevation to access ws2128b led.  
+Then it will publish a mini API that will be able to control the LED.
+
+In `config.yml`, you can set options for that led
+
+```yaml
+led:
+  enabled: True
+  pin: 21  # GPIO pin connected to the LED
+  num_leds: 1  # Number of LEDs
+  brightness: 127  # Brightness of the LED
+```
+
+Please, choose a GPIO PWM for the led.
+
+* Requirements
+
+```
+sudo apt install git python3-flask
+```
+
+* Systemd unit
+
+```sh
+sudo cp contrib/led-controller.service /etc/systemd/system/
+sudo chmod 644 /etc/systemd/system/led-controller.service 
+sudo systemctl daemon-reload
+sudo systemctl enable led-controller.service
+sudo systemctl start led-controller.service
+```
+
+* Testing it
+
+```sh
+curl -X POST -H "Content-Type: application/json" -d '{"color": [255, 0, 0], "blinking": false}' http://localhost:5000/led # red
+curl -X POST -H "Content-Type: application/json" -d '{"color": [255, 0, 0], "blinking": true}' http://localhost:5000/led # red blinking
+curl -X POST -H "Content-Type: application/json" -d '{"color": [0, 0, 255], "blinking": true}' http://localhost:5000/led # blue blinking
+curl -X POST -H "Content-Type: application/json" -d '{"color": [0, 0, 0], "blinking": false}' http://localhost:5000/led # blue blinking
+```
+
+* Color codes
+
+| Color           | Description                                                     |
+| --------------- | --------------------------------------------------------------- |
+| Orange solid    | System is booting                                               |
+| Orange blinking | System is UP but audio guestbook is not launched                |
+| Green solid     | Audio guestbook is launched, you can pick up the phone          |
+| Green blinking  | Hooked up, waiting for a dialed number                          |
+| Blue solid      | Action is finished, ready to execute another one or to hang up  | 
+| Blue blinking   | Action is executing                                             |
+
 **Audio guestbook itself**
 
 Note that most of that code has been written by chatpgt.  
@@ -196,6 +250,12 @@ recording:
 telegram:
   token: "YOUR_TELEGRAM_BOT_TOKEN" # if set, the program will send recorded voice to telegram
   chat_id: "YOUR_TELEGRAM_CHAT_ID"
+
+led:
+  enabled: True
+  pin: 21  # GPIO pin connected to the LED
+  num_leds: 1  # Number of LEDs
+  brightness: 127  # Brightness of the LED
 ```
 
 From the command line 

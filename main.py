@@ -8,6 +8,7 @@ import pygame
 import subprocess
 import glob
 import requests
+import json
 from gtts import gTTS
 from threading import Timer
 from datetime import datetime
@@ -46,6 +47,7 @@ class RotaryDial:
         self.TELEGRAM_TOKEN = config['telegram'].get('token')
         self.TELEGRAM_CHAT_ID = config['telegram'].get('chat_id')
         self.BLAGUESAPI_TOKEN = config['blagues-api'].get('token')
+        self.LED_ENABLED = config.get('led', {}).get('enabled', False)
 
     def setup_gpio(self):
         GPIO.setwarnings(False)
@@ -56,7 +58,7 @@ class RotaryDial:
 
     def init_audio(self):
         os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
-        pygame.mixer.init()
+        pygame.mixer.init(buffer=2048)
         pygame.mixer.pre_init(devicename=self.AUDIO_DEVICE_ADDRESS)
         self.hook_sound = pygame.mixer.Sound(self.HOOK_SOUND_FILE)
 
@@ -99,22 +101,29 @@ class RotaryDial:
     def count_pulse(self, channel):
         self.pulse_count += 1
 
-    def control_ws2812b_led(color, blinking=False):
-        led_controller_path = "/home/audio-guestbook/led_controller.py"
+    def control_led(self, color, blinking=False):
+        if not self.LED_ENABLED:
+            print("LED is not enabled in the configuration.")
+            return {'success': False, 'message': 'LED is not enabled in the configuration.'}
+        url = "http://localhost:5000/led"
+        data = {"color": color, "blinking": blinking}
+        headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
 
-        color_str = ','.join(str(c) for c in color)
-
-        blinking_str = "1" if blinking else "0"
-
-        command = ["sudo", "python3", led_controller_path, color_str, blinking_str]
-        subprocess.run(command)
+        try:
+            response = requests.post(url, data=json.dumps(data), headers=headers)
+            if response.status_code == 200:
+                print("LED controlled successfully")
+            else:
+                print("Failed to control LED")
+        except Exception as e:
+            print(f"Error while controlling LED: {e}")
 
 
     def handle_hook_state(self, channel):
         hook_state = GPIO.input(self.HOOK_PIN)
         if hook_state == GPIO.LOW:  # Hook is open (NO)
             print("Hook is open, ready for dialing")
-            control_ws2812b_led((0, 255, 255), blinking=True)
+            self.control_led([0, 255, 0], blinking=True)
             if not self.sound_playing:
                 self.hook_sound.play()
                 self.sound_playing = True
@@ -125,7 +134,7 @@ class RotaryDial:
             self.stop_recording_process()
         else:  # Hook is closed (NC)
             print("Hook is closed, dialing not allowed")
-            #self.led_control.set_color(0, 255, 255)  # Green solid
+            self.control_led([0, 255, 0], blinking=False)
             if self.sound_playing:
                 self.hook_sound.stop()
                 self.sound_playing = False
@@ -154,6 +163,7 @@ class RotaryDial:
 
     def cleanup(self):
         print("Cleaning up resources...")
+        self.control_led([255,165,0], blinking=False)
         GPIO.cleanup()
         pygame.mixer.quit()
 
@@ -165,7 +175,7 @@ class RotaryDial:
     def run(self):
         signal.signal(signal.SIGINT, self.signal_handler)
         try:
-            #self.led_control.set_color(0, 255, 0)  # Green
+            self.control_led([0, 255, 0], blinking=False)
             while True:
                 if self.dial_enabled and GPIO.event_detected(self.ROTARY_ENABLE_PIN):
                     current_state = GPIO.input(self.ROTARY_ENABLE_PIN)
@@ -194,12 +204,10 @@ class RotaryDial:
     def handle_dialed_number(self, number):
         try:
             # Set the LED to blinking blue when an action starts
-            #self.led_control.start_blinking(0, 0, 255)  # Blue blinking
+            self.control_led([0, 0, 255], blinking=True)
             action_module = __import__(f"dialed_number.{number}", fromlist=["execute"])
             action_module.execute(self)
-            # Set the LED to solid blue when the action is done
-            #self.led_control.stop_blinking()
-            #self.led_control.set_color(0, 0, 255)  # Blue solid
+            self.control_led([0, 0, 255], blinking=False)
         except ImportError:
             print(f"No action defined for number {number}")
 
