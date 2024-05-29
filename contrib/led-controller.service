@@ -1,0 +1,16 @@
+[Unit]
+Description=LED Controller Service
+After=network.target
+Wants=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/home/guestbook/audio-guestbook/
+ExecStart=python3 /home/guestbook/audio-guestbook/led_controller.py
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

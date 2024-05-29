@@ -17,14 +17,18 @@ audio_output:
   device_address: 'hw:0,0'  # Change this to your desired audio output device address
 
 recording:
-  max_duration: 10  # Maximum duration in seconds
+  max_duration: 30  # Maximum duration in seconds
 
 telegram:
   token: "YOUR_TELEGRAM_BOT_TOKEN" # if set, the program will send recorded voice to telegram
   chat_id: "YOUR_TELEGRAM_CHAT_ID"
 
+blagues-api:
+  token: "YOUR_BLAGUESAPI_TOKEN" 
+
 led:
-  pin: 12  # GPIO pin connected to the LED
+  enabled: False
+  pin: 21  # GPIO pin connected to the LED
   num_leds: 1  # Number of LEDs
-  brightness: 255  # Brightness of the LED
+  brightness: 127  # Brightness of the LED
 

@@ -1,5 +1,4 @@
 import os
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import signal
 import sys
 import RPi.GPIO as GPIO
@@ -8,10 +7,14 @@ import yaml
 import pygame
 import subprocess
 import glob
+import requests
+import json
+from gtts import gTTS
 from threading import Timer
 from datetime import datetime
 from telegram import Bot
 from telegram.error import TelegramError
+import tempfile
 
 class RotaryDial:
     def __init__(self, config_file='config.yaml'):
@@ -43,6 +46,8 @@ class RotaryDial:
         self.RECORDING_DURATION = config['recording']['max_duration']
         self.TELEGRAM_TOKEN = config['telegram'].get('token')
         self.TELEGRAM_CHAT_ID = config['telegram'].get('chat_id')
+        self.BLAGUESAPI_TOKEN = config['blagues-api'].get('token')
+        self.LED_ENABLED = config.get('led', {}).get('enabled', False)
 
     def setup_gpio(self):
         GPIO.setwarnings(False)
@@ -53,7 +58,7 @@ class RotaryDial:
 
     def init_audio(self):
         os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
-        pygame.mixer.init()
+        pygame.mixer.init(buffer=2048)
         pygame.mixer.pre_init(devicename=self.AUDIO_DEVICE_ADDRESS)
         self.hook_sound = pygame.mixer.Sound(self.HOOK_SOUND_FILE)
 
@@ -63,13 +68,62 @@ class RotaryDial:
         else:
             self.bot = None
 
+    def play_sound(self, sound_file):
+        sound = pygame.mixer.Sound(sound_file)
+        sound.play()
+        while pygame.mixer.get_busy():
+            time.sleep(0.1)  # Wait for the sound to finish playing
+
+    def text_to_speech(self, text, file_path):
+        try:
+            tts = gTTS(text=text, lang='fr')  # Assuming text is in French
+            tts.save(file_path)
+        except Exception as e:
+            print(f"Failed to convert text to speech: {e}")
+
+    def send_telegram_message(self, file_path):
+        if self.bot:
+            try:
+                with open(file_path, 'rb') as audio_file:
+                    self.bot.send_audio(chat_id=self.TELEGRAM_CHAT_ID, audio=audio_file)
+                print("Recording sent via Telegram")
+            except TelegramError as e:
+                print(f"Failed to send recording via Telegram: {e}")
+        else:
+            print("Telegram bot is not initialized")
+
+    def stop_recording(self):
+        self.stop_recording_process()
+        if self.bot:
+            self.send_telegram_message(self.current_file_path)
+        self.is_recording = False  # Reset recording flag
+
     def count_pulse(self, channel):
         self.pulse_count += 1
+
+    def control_led(self, color, blinking=False):
+        if not self.LED_ENABLED:
+            print("LED is not enabled in the configuration.")
+            return {'success': False, 'message': 'LED is not enabled in the configuration.'}
+        url = "http://localhost:5000/led"
+        data = {"color": color, "blinking": blinking}
+        headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
+
+        try:
+            response = requests.post(url, data=json.dumps(data), headers=headers)
+            if response.status_code == 200:
+                print("LED controlled successfully")
+            else:
+                print("Failed to control LED")
+        except Exception as e:
+            print(f"Error while controlling LED: {e}")
+
 
     def handle_hook_state(self, channel):
         hook_state = GPIO.input(self.HOOK_PIN)
         if hook_state == GPIO.LOW:  # Hook is open (NO)
             print("Hook is open, ready for dialing")
+            self.control_led([0, 255, 0], blinking=True)
             if not self.sound_playing:
                 self.hook_sound.play()
                 self.sound_playing = True
@@ -80,6 +134,7 @@ class RotaryDial:
             self.stop_recording_process()
         else:  # Hook is closed (NC)
             print("Hook is closed, dialing not allowed")
+            self.control_led([0, 255, 0], blinking=False)
             if self.sound_playing:
                 self.hook_sound.stop()
                 self.sound_playing = False
@@ -106,46 +161,9 @@ class RotaryDial:
             self.current_recording_process.terminate()
             self.current_recording_process = None
 
-    def play_leave_message_sound(self):
-        leave_message_sound = pygame.mixer.Sound("sounds/leave_a_message.wav")
-        leave_message_sound.play()
-
-    def start_audio_recording(self):
-        if not os.path.exists(self.RECORDINGS_DIRECTORY):
-            os.makedirs(self.RECORDINGS_DIRECTORY)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_name = f"recorded_audio_{timestamp}.wav"
-        self.current_file_path = os.path.join(self.RECORDINGS_DIRECTORY, file_name)
-        self.current_recording_process = subprocess.Popen(["arecord", "-D", self.AUDIO_DEVICE_ADDRESS, "-f", "cd", "-c", "1", "-t", "wav", "-d", str(self.RECORDING_DURATION), self.current_file_path])
-        self.recording_timer = Timer(self.RECORDING_DURATION, self.stop_recording)
-        self.recording_timer.start()
-        self.is_recording = True  # Indicate that recording is in progress
-
-    def stop_recording(self):
-        self.stop_recording_process()
-        if self.bot:
-            self.send_telegram_message(self.current_file_path)
-        self.is_recording = False  # Reset recording flag
-
-    def send_telegram_message(self, file_path):
-        try:
-            with open(file_path, 'rb') as audio_file:
-                self.bot.send_audio(chat_id=self.TELEGRAM_CHAT_ID, audio=audio_file)
-            print("Recording sent via Telegram")
-        except TelegramError as e:
-            print(f"Failed to send recording via Telegram: {e}")
-
-    def play_last_recording(self):
-        wav_files = glob.glob(os.path.join(self.RECORDINGS_DIRECTORY, "*.wav"))
-        if wav_files:
-            last_recording = sorted(wav_files, key=os.path.getctime)[-1]
-            last_recording_sound = pygame.mixer.Sound(last_recording)
-            last_recording_sound.play()
-        else:
-            print("No recordings found")
-
     def cleanup(self):
         print("Cleaning up resources...")
+        self.control_led([255,165,0], blinking=False)
         GPIO.cleanup()
         pygame.mixer.quit()
 
@@ -157,6 +175,7 @@ class RotaryDial:
     def run(self):
         signal.signal(signal.SIGINT, self.signal_handler)
         try:
+            self.control_led([0, 255, 0], blinking=False)
             while True:
                 if self.dial_enabled and GPIO.event_detected(self.ROTARY_ENABLE_PIN):
                     current_state = GPIO.input(self.ROTARY_ENABLE_PIN)
@@ -183,15 +202,14 @@ class RotaryDial:
             self.cleanup()
 
     def handle_dialed_number(self, number):
-        if number == 1:
-            self.current_action = pygame.mixer.Sound("sounds/greeting.wav")
-            self.current_action.play()
-        elif number == 2:
-            self.play_leave_message_sound()
-            time.sleep(5)
-            self.start_audio_recording()
-        elif number == 3:
-            self.play_last_recording()
+        try:
+            # Set the LED to blinking blue when an action starts
+            self.control_led([0, 0, 255], blinking=True)
+            action_module = __import__(f"dialed_number.{number}", fromlist=["execute"])
+            action_module.execute(self)
+            self.control_led([0, 0, 255], blinking=False)
+        except ImportError:
+            print(f"No action defined for number {number}")
 
 if __name__ == "__main__":
     rotary_dial = RotaryDial()

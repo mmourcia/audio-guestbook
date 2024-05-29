@@ -3,7 +3,7 @@ Description=Audio Guestbook Service
 After=network.target
 
 [Service]
-ExecStart=python3 /home/guestbook/audio-guestbook/audio-guestbook.py
+ExecStart=python3 /home/guestbook/audio-guestbook/main.py
 WorkingDirectory=/home/guestbook/audio-guestbook
 StandardOutput=inherit
 StandardError=inherit
