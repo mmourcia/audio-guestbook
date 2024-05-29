@@ -13,7 +13,7 @@ Must have features are :
 * Be able to leave an audio message
 * Be able to use mic and speaker from the main phone as well as the secondary speaker
 * Be able to make it ring as it used to (Spoiler : I didn't managed to make it work snirf ...) 
-* Use a rgb led to provide a status to users. Not implemented, still finding a way to use a ws2812b led without being root.
+* Use a rgb led to provide a status to users
 * Send voice messages to a telegram channel
 
 Here are some credits I'd like to give because the authors inspired me :
@@ -76,11 +76,14 @@ sudo apt install python3-rpi-lgpio
 sudo pip3 install --break-system-packages gTTS gTTS-token
 ```
 
-**Option Led status**
+**Led status option**
 
 There is an option to use a led (type ws2128b) to provide the guest book status.  
 It's executed over a dedicated daemon because it requires root elevation to access ws2128b led.  
-Then it will publish a mini API that will be able to control the LED.
+It publishes a mini API that will be able to control the LED.
+
+
+![led status animation](./img/led-status-animation.gif)
 
 In `config.yml`, you can set options for that led
 
@@ -116,7 +119,7 @@ sudo systemctl start led-controller.service
 curl -X POST -H "Content-Type: application/json" -d '{"color": [255, 0, 0], "blinking": false}' http://localhost:5000/led # red
 curl -X POST -H "Content-Type: application/json" -d '{"color": [255, 0, 0], "blinking": true}' http://localhost:5000/led # red blinking
 curl -X POST -H "Content-Type: application/json" -d '{"color": [0, 0, 255], "blinking": true}' http://localhost:5000/led # blue blinking
-curl -X POST -H "Content-Type: application/json" -d '{"color": [0, 0, 0], "blinking": false}' http://localhost:5000/led # blue blinking
+curl -X POST -H "Content-Type: application/json" -d '{"color": [0, 0, 0], "blinking": false}' http://localhost:5000/led # Switched off
 ```
 
 * Color codes
