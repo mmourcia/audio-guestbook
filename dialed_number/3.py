@@ -1,6 +1,5 @@
 import glob
 import os
-import pygame
 
 def execute(rotary_dial):
     play_last_recording(rotary_dial)

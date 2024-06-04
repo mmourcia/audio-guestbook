@@ -70,7 +70,7 @@ Options set (Ctrl+Shift+X) :
 
 ```sh
 sudo apt update
-sudo apt install git python3-yaml python3-pip python3-python-telegram-bot
+sudo apt install git python3-yaml python3-pip python3-python-telegram-bot ffmpeg
 sudo apt remove python3-rpi.gpio
 sudo apt install python3-rpi-lgpio
 sudo pip3 install --break-system-packages gTTS gTTS-token

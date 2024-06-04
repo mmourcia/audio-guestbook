@@ -4,17 +4,14 @@ import sys
 import RPi.GPIO as GPIO
 import time
 import yaml
-import pygame
 import subprocess
-import glob
 import requests
 import json
 from gtts import gTTS
-from threading import Timer
+from threading import Timer, Thread
 from datetime import datetime
 from telegram import Bot
 from telegram.error import TelegramError
-import tempfile
 
 class RotaryDial:
     def __init__(self, config_file='config.yaml'):
@@ -26,6 +23,8 @@ class RotaryDial:
         self.last_state = 1
         self.dial_enabled = False
         self.sound_playing = False
+        self.sound_process = None
+        self.sound_thread = None
         self.current_action = None
         self.current_recording_process = None
         self.recording_timer = None
@@ -41,13 +40,13 @@ class RotaryDial:
         self.DEBOUNCE_DELAY = config['rotary']['debounce_delay']
         self.HOOK_PIN = config['hook']['pin']
         self.HOOK_SOUND_FILE = config['hook']['sound_file']
-        self.AUDIO_DEVICE_ADDRESS = config['audio_output']['device_address']
         self.RECORDINGS_DIRECTORY = "recordings"
         self.RECORDING_DURATION = config['recording']['max_duration']
         self.TELEGRAM_TOKEN = config['telegram'].get('token')
         self.TELEGRAM_CHAT_ID = config['telegram'].get('chat_id')
         self.BLAGUESAPI_TOKEN = config['blagues-api'].get('token')
         self.LED_ENABLED = config.get('led', {}).get('enabled', False)
+        self.AUDIO_DEVICE_ADDRESS = config['audio_output']['device_address']
 
     def setup_gpio(self):
         GPIO.setwarnings(False)
@@ -57,10 +56,7 @@ class RotaryDial:
         GPIO.setup(self.HOOK_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Hook pin setup
 
     def init_audio(self):
-        os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
-        pygame.mixer.init(buffer=2048)
-        pygame.mixer.pre_init(devicename=self.AUDIO_DEVICE_ADDRESS)
-        self.hook_sound = pygame.mixer.Sound(self.HOOK_SOUND_FILE)
+        pass  # No need to initialize audio here since we'll use ffplay
 
     def init_telegram(self):
         if self.TELEGRAM_TOKEN and self.TELEGRAM_CHAT_ID:
@@ -69,10 +65,30 @@ class RotaryDial:
             self.bot = None
 
     def play_sound(self, sound_file):
-        sound = pygame.mixer.Sound(sound_file)
-        sound.play()
-        while pygame.mixer.get_busy():
-            time.sleep(0.1)  # Wait for the sound to finish playing
+        def _play():
+            audio_device_address = self.AUDIO_DEVICE_ADDRESS
+            os.environ["SDL_AUDIODRIVER"] = "alsa"
+            os.environ["AUDIODEV"] = audio_device_address
+
+            self.sound_process = subprocess.Popen(['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', sound_file])
+            self.sound_process.wait()
+            self.sound_playing = False
+
+        if self.sound_playing:
+            self.stop_sound()  # Ensure the previous sound is stopped
+
+        self.sound_playing = True
+        self.sound_thread = Thread(target=_play)
+        self.sound_thread.start()
+
+    def stop_sound(self):
+        if self.sound_playing and self.sound_process:
+            print("Stopping currently playing sound")
+            self.sound_process.terminate()
+            self.sound_thread.join()
+            self.sound_playing = False
+            self.sound_process = None
+            print("Sound playback stopped")
 
     def text_to_speech(self, text, file_path):
         try:
@@ -80,6 +96,7 @@ class RotaryDial:
             tts.save(file_path)
         except Exception as e:
             print(f"Failed to convert text to speech: {e}")
+
 
     def send_telegram_message(self, file_path):
         if self.bot:
@@ -118,15 +135,13 @@ class RotaryDial:
         except Exception as e:
             print(f"Error while controlling LED: {e}")
 
-
     def handle_hook_state(self, channel):
         hook_state = GPIO.input(self.HOOK_PIN)
         if hook_state == GPIO.LOW:  # Hook is open (NO)
             print("Hook is open, ready for dialing")
             self.control_led([0, 255, 0], blinking=True)
             if not self.sound_playing:
-                self.hook_sound.play()
-                self.sound_playing = True
+                self.play_sound(self.HOOK_SOUND_FILE)
             self.dial_enabled = True
             GPIO.add_event_detect(self.ROTARY_ENABLE_PIN, GPIO.BOTH)
             self.reset_current_action()
@@ -136,8 +151,7 @@ class RotaryDial:
             print("Hook is closed, dialing not allowed")
             self.control_led([0, 255, 0], blinking=False)
             if self.sound_playing:
-                self.hook_sound.stop()
-                self.sound_playing = False
+                self.stop_sound()
             self.dial_enabled = False
             GPIO.remove_event_detect(self.ROTARY_ENABLE_PIN)
             GPIO.remove_event_detect(self.ROTARY_COUNT_PIN)
@@ -163,9 +177,8 @@ class RotaryDial:
 
     def cleanup(self):
         print("Cleaning up resources...")
-        self.control_led([255,165,0], blinking=False)
+        self.control_led([255, 165, 0], blinking=False)
         GPIO.cleanup()
-        pygame.mixer.quit()
 
     def signal_handler(self, sig, frame):
         print("Got Signal, Stopping...")
@@ -189,8 +202,7 @@ class RotaryDial:
                                     dialed_number = 0
                                 print(f"Dialed number: {dialed_number}")
                                 if self.sound_playing:
-                                    self.hook_sound.stop()
-                                    self.sound_playing = False
+                                    self.stop_sound()
                                 self.handle_dialed_number(dialed_number)
                                 GPIO.remove_event_detect(self.ROTARY_COUNT_PIN)
                                 self.pulse_count = 0
@@ -203,13 +215,21 @@ class RotaryDial:
 
     def handle_dialed_number(self, number):
         try:
+            print(f"Handling dialed number: {number}")  # Debug message
+            # Stop any currently playing sound before handling the new action
+            if self.sound_playing:
+                self.stop_sound()
+
             # Set the LED to blinking blue when an action starts
             self.control_led([0, 0, 255], blinking=True)
             action_module = __import__(f"dialed_number.{number}", fromlist=["execute"])
+            print(f"Imported module for number: {number}")  # Debug message
             action_module.execute(self)
             self.control_led([0, 0, 255], blinking=False)
         except ImportError:
             print(f"No action defined for number {number}")
+        except Exception as e:
+            print(f"Error handling dialed number {number}: {e}")
 
 if __name__ == "__main__":
     rotary_dial = RotaryDial()
