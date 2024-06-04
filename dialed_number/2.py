@@ -6,7 +6,14 @@ from datetime import datetime
 
 def execute(rotary_dial):
     rotary_dial.play_sound("sounds/leave_a_message.wav")
+    while rotary_dial.sound_playing:
+        time.sleep(0.1)
+
+
     rotary_dial.play_sound("sounds/beep.wav")
+    while rotary_dial.sound_playing:
+        time.sleep(0.1)
+
     start_audio_recording(rotary_dial)
 
 def start_audio_recording(rotary_dial):
