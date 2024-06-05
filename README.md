@@ -293,28 +293,6 @@ ringtone:
   sound_file: 'sounds/original_bell.wav'
 ```
 
-To help you finding your audio devices, you can use a special route of the API to get it
-
-```sh
-curl -s -X GET http://localhost:5001/audio_devices|jq .
-{
-  "audio_devices": [
-    {
-      "device_address": "hw:0,0",
-      "name": "UACDemoV10 [UACDemoV1.0]: USB Audio"
-    },
-    {
-      "device_address": "hw:1,0",
-      "name": "Device [USB PnP Sound Device]: USB Audio"
-    },
-    {
-      "device_address": "hw:2,0",
-      "name": "vc4hdmi [vc4-hdmi]: MAI PCM i2s-hifi-0"
-    }
-  ]
-}
-```
-
 Execute the guestbook from the command line :
 
 ```sh
@@ -348,6 +326,32 @@ To update or add new actions, have a look at `dialed_number` directory.
 Enjoy !
 
 ## Troubleshooting
+
+**Audio devices**
+
+To help you finding your audio devices, you can use a special route of the API to get it
+
+```sh
+curl -s -X GET http://localhost:5001/audio_devices|jq .
+{
+  "audio_devices": [
+    {
+      "device_address": "hw:0,0",
+      "name": "UACDemoV10 [UACDemoV1.0]: USB Audio"
+    },
+    {
+      "device_address": "hw:1,0",
+      "name": "Device [USB PnP Sound Device]: USB Audio"
+    },
+    {
+      "device_address": "hw:2,0",
+      "name": "vc4hdmi [vc4-hdmi]: MAI PCM i2s-hifi-0"
+    }
+  ]
+}
+```
+
+
 
 **Set capture volume**
 
