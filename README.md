@@ -147,10 +147,17 @@ ringtone:
 
 * Testing it
 
+**Through API**
+
 ```sh
 curl -X POST -H "Content-Type: application/json" http://localhost:5001/ring # Play ringtone
 curl -X POST -H "Content-Type: application/json" http://localhost:5001/stop_ring # Stop ringtone
 ```
+
+**Through telegram**
+
+![telegram ring](./img/telegramring.png)
+
 
 **Audio guestbook itself**
 
