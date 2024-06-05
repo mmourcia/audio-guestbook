@@ -14,20 +14,26 @@ sounds:
   leave_message: 'sounds/leave_a_message.wav'
 
 audio_output:
-  device_address: 'hw:1,0'  # Change this to your desired audio output device address
+  device_address: 'hw:1,0'  # Change this to your desired audio output device address => curl -X GET http://localhost:5001/audio_devices|jq .
 
 recording:
   max_duration: 30  # Maximum duration in seconds
 
 telegram:
-  token: "TELEGRAM_TOKEN"
-  chat_id: "TELEGRAM_CHAT_ID"
+  token: "telegram token" # set it to "" to disable it
+  chat_id: "telegram chat id"
 
 blagues-api:
-  token: blagues-api-token
+  token: blagues-api token
 
 led:
-  enabled: True
+  enabled: False
   pin: 21  # GPIO pin connected to the LED
   num_leds: 1  # Number of LEDs
-  brightness: 127  # Brightness of the LED
+  brightness: 10 # Brightness of the LED
+
+ringtone:
+  enabled: False
+  device_address: 'hw:0,0' # Change this to your desired audio output device address => curl -X GET http://localhost:5001/audio_devices|jq .
+  volume: 0.1
+  sound_file: 'sounds/original_bell.wav'

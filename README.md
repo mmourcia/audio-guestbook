@@ -12,7 +12,7 @@ Must have features are :
 * Be able to use the rotary dialer to execute some actions
 * Be able to leave an audio message
 * Be able to use mic and speaker from the main phone as well as the secondary speaker
-* Be able to make it ring as it used to (Spoiler : I didn't managed to make it work snirf ...) 
+* Be able to make it ring as it used to (Spoiler : I didn't managed to make original bell work ... But I suggest another way to perform it) 
 * Use a rgb led to provide a status to users
 * Send voice messages to a telegram channel
 
@@ -48,16 +48,19 @@ This part is absolutely not necessary. I'll maybe just use wires to power the ra
 
 ### Hardware
 
-| Item               | Photo                                          | Description |
-| ------------------ | ---------------------------------------------- | ----------- |
-| Socotel S63 Phone  | ![Socotel S63](./img/socotel_s63.png)          | The phone !!(bought on [le bon coin](https://leboncoin.fr)) | 
-| Raspberry pi 2 W   | ![raspberry pi 0 2w](./img/raspberrypi02w.jpg) | |
-| USB sound card     | ![usb sound card](./img/usbsoundcard.jpg)      | To connect mic and speaker from the main phone              |
-| Jack 3,5mm adapter | ![jack_screw](./img/jack_screw.png)            | To connect the secondary speaker                            |
+| Item                         | Photo                                          | Description |
+| ---------------------------- | ---------------------------------------------- | ----------- |
+| Socotel S63 Phone            | ![Socotel S63](./img/socotel_s63.png)          | The phone !!(bought on [le bon coin](https://leboncoin.fr)) | 
+| Raspberry pi 2 W             | ![raspberry pi 0 2w](./img/raspberrypi02w.jpg) | |
+| USB sound card               | ![usb sound card](./img/usbsoundcard.jpg)      | To connect mic and speaker from the main phone              |
+| Jack 3,5mm adapter           | ![jack_screw](./img/jack_screw.png)            | To connect the secondary speaker                            |
+| USB hub                      | ![USB Hub](./img/hub_usb.jpg)                  | To connect soundcard and ringtone                           |
+| USB extender                 | ![USB extender](./img/usb_extender.jpg)        | To connect soundcard and ringtone                           |
+| USB speaker for the ringtone | ![USB ringtone](./img/ringtone.jpg)            | Speaker used to play ringtone                               |
 
 ### OS
 
-I simply use rpi-imager and image `Raspberry pi OS LITE 64 bits`.  
+I simply used rpi-imager and image `Raspberry pi OS LITE 64 bits`.  
 
 Options set (Ctrl+Shift+X) : 
 
@@ -70,7 +73,7 @@ Options set (Ctrl+Shift+X) :
 
 ```sh
 sudo apt update
-sudo apt install git python3-yaml python3-pip python3-python-telegram-bot ffmpeg
+sudo apt install git python3-yaml python3-pip python3-python-telegram-bot ffmpeg python3-flask
 sudo apt remove python3-rpi.gpio
 sudo apt install python3-rpi-lgpio
 sudo pip3 install --break-system-packages gTTS gTTS-token
@@ -96,12 +99,6 @@ led:
 ```
 
 Please, choose a GPIO PWM for the led.
-
-* Requirements
-
-```
-sudo apt install git python3-flask
-```
 
 * Systemd unit
 
@@ -132,6 +129,28 @@ curl -X POST -H "Content-Type: application/json" -d '{"color": [0, 0, 0], "blink
 | Green blinking  | Hooked up, waiting for a dialed number                          |
 | Blue solid      | Action is finished, ready to execute another one or to hang up  | 
 | Blue blinking   | Action is executing                                             |
+
+**Ringtone**
+
+You can enable the ringtone option that will allow you to make the phone ring.  
+It can be executed by calling a endpoint of the API or through a telegram message.
+
+In `config.yml`, you can set options for the ringtone
+
+```yaml
+ringtone:
+  enabled: True
+  device_address: 'hw:0,0' 
+  volume: 0.1
+  sound_file: 'sounds/original_bell.wav'
+```
+
+* Testing it
+
+```sh
+curl -X POST -H "Content-Type: application/json" http://localhost:5001/ring # Play ringtone
+curl -X POST -H "Content-Type: application/json" http://localhost:5001/stop_ring # Stop ringtone
+```
 
 **Audio guestbook itself**
 
@@ -245,13 +264,13 @@ sounds:
   leave_message: 'sounds/leave_a_message.wav'
 
 audio_output:
-  device_address: 'hw:0,0'  # Change this to your desired audio output device address. Check aplay -l|-L.
+  device_address: 'hw:0,0'  # Change this to your desired audio output device address. curl -X GET http://localhost:5001/audio_devices|jq . 
 
 recording:
   max_duration: 10  # Maximum duration in seconds
 
 telegram:
-  token: "YOUR_TELEGRAM_BOT_TOKEN" # if set, the program will send recorded voice to telegram
+  token: "YOUR_TELEGRAM_BOT_TOKEN" # if set, the program will send recorded voice to telegram. (set it to "" to disable telegram).
   chat_id: "YOUR_TELEGRAM_CHAT_ID"
 
 led:
@@ -259,9 +278,37 @@ led:
   pin: 21  # GPIO pin connected to the LED
   num_leds: 1  # Number of LEDs
   brightness: 127  # Brightness of the LED
+
+ringtone:
+  enabled: True
+  device_address: 'hw:1,0' # Change this to your desired audio output device address. curl -X GET http://localhost:5001/audio_devices|jq . 
+  volume: 0.1
+  sound_file: 'sounds/original_bell.wav'
 ```
 
-From the command line 
+To help you finding your audio devices, you can use a special route of the API to get it
+
+```sh
+curl -s -X GET http://localhost:5001/audio_devices|jq .
+{
+  "audio_devices": [
+    {
+      "device_address": "hw:0,0",
+      "name": "UACDemoV10 [UACDemoV1.0]: USB Audio"
+    },
+    {
+      "device_address": "hw:1,0",
+      "name": "Device [USB PnP Sound Device]: USB Audio"
+    },
+    {
+      "device_address": "hw:2,0",
+      "name": "vc4hdmi [vc4-hdmi]: MAI PCM i2s-hifi-0"
+    }
+  ]
+}
+```
+
+Execute the guestbook from the command line :
 
 ```sh
 python3 main.py
@@ -287,6 +334,7 @@ Now you can try
 * to dial 1, you'll listen to a recorded message
 * to dial 2, you'll be able to record a message (10s max)
 * to dial 3, you'll listen to the last recorded message
+* to dial 4, you'll listen to a random french joke taken from blagues-api.fr
 
 To update or add new actions, have a look at `dialed_number` directory.
 
@@ -312,28 +360,6 @@ amixer sset 'Mic' 90%
 
 ```sh
 sudo journalctl -fu audio-guestbook.service
+sudo journalctl -fu led-controller.service
 ```
 
-**Unable to install hw params**
-
-Sometimes, I get this message when trying to record a voice message.  
-Still don't know why, if someone can help, I take it !
-
-```
-arecord: set_params:1416: Unable to install hw params:
-ACCESS:  RW_INTERLEAVED
-FORMAT:  S16_LE
-SUBFORMAT:  STD
-SAMPLE_BITS: 16
-FRAME_BITS: 16
-CHANNELS: 1
-RATE: 44100
-PERIOD_TIME: (125011 125012)
-PERIOD_SIZE: 5513
-PERIOD_BYTES: 11026
-PERIODS: (3 4)
-BUFFER_TIME: 500000
-BUFFER_SIZE: 22050
-BUFFER_BYTES: 44100
-TICK_TIME: 0
-```
