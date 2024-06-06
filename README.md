@@ -147,17 +147,32 @@ ringtone:
 
 * Testing it
 
-**Through API**
+Through API : 
 
 ```sh
 curl -X POST -H "Content-Type: application/json" http://localhost:5001/ring # Play ringtone
 curl -X POST -H "Content-Type: application/json" http://localhost:5001/stop_ring # Stop ringtone
 ```
 
-**Through telegram**
+Through telegram :
 
 ![telegram ring](./img/telegramring.png)
 
+To be able ti use telegram in this audio guestbook, contact @botfather and 
+
+  * Type `/newbot`, you'll be asked to provide a bot name
+  * Copy the token
+  * Send a message to config.yaml file to your new bot and open a tab to https://api.telegram.org/bot<YOUR_API_TOKEN>/getUpdates to get the correct "chat_id"
+  * Set **token** and **chat_id** in config.yaml
+
+**Camera module**
+
+Camera module is supported by the audio guestbook.  
+Just plug it on the rapsberry pi and enable support in config.yaml.  
+
+Each time you'll pick up the phone, a video record will begin.  It will stop on hang up.
+
+Video records can be sent to telegram too.
 
 **Audio guestbook itself**
 
@@ -291,6 +306,10 @@ ringtone:
   device_address: 'hw:1,0' # Change this to your desired audio output device address. curl -X GET http://localhost:5001/audio_devices|jq . 
   volume: 0.1
   sound_file: 'sounds/original_bell.wav'
+
+camera:
+  enabled: True
+  video_directory: "videos"
 ```
 
 Execute the guestbook from the command line :

@@ -37,3 +37,8 @@ ringtone:
   device_address: 'hw:0,0' # Change this to your desired audio output device address => curl -X GET http://localhost:5001/audio_devices|jq .
   volume: 0.1
   sound_file: 'sounds/original_bell.wav'
+
+camera:
+  enabled: True
+  video_directory: "videos"
+
